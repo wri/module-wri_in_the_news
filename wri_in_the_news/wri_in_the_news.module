@@ -2,8 +2,10 @@
 
 //define('WRI_IN_THE_NEWS_VOCUS_FEED', 'http://vocuspr.vocus.com/vocuspr30/Publish/520356/lWRInews.xml');
 
-define('WRI_IN_THE_NEWS_VOCUS_FEED', 
-  'http://www.wri.org/news-and-views/rss.xml');
+//define('WRI_IN_THE_NEWS_VOCUS_FEED', 
+//  'http://www.wri.org/news-and-views/rss.xml');
+
+define('WRI_IN_THE_NEWS_VOCUS_FEED', 'http://wribrasil.org.br/pt/news-and-views/rss.xml');
 
 define('WRI_IN_THE_NEWS_NUMBER_OF_ITEMS', 3);
 define('WRI_IN_THE_NEWS_CACHE_TIME', '+1 hour');
