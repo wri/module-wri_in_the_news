@@ -1,4 +1,4 @@
 name =  WRI in the News
-description = Pull news articles from Vocus
+description = Pull news articles from a WRI feed (rss/xml). The repo for this module is https://github.com/wri/module-wri_in_the_news.
 package = WRI
 core = 7.x
