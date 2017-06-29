@@ -1,0 +1,8 @@
+<?php
+/**
+ * Implements hook_uninstall().
+ */
+function wri_in_the_news_uninstall() {
+  variable_del('wri_in_the_news_feed_error_timestamp');
+  variable_del('wri_in_the_news_feed_log_timestamp');
+}

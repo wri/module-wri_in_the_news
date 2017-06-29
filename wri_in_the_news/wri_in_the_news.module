@@ -1,0 +1,172 @@
+<?php
+
+//define('WRI_IN_THE_NEWS_VOCUS_FEED', 'http://vocuspr.vocus.com/vocuspr30/Publish/520356/lWRInews.xml');
+
+define('WRI_IN_THE_NEWS_VOCUS_FEED', 
+  'http://www.wri.org/news-and-views/rss.xml');
+
+define('WRI_IN_THE_NEWS_NUMBER_OF_ITEMS', 3);
+define('WRI_IN_THE_NEWS_CACHE_TIME', '+1 hour');
+
+/**
+ * Implements hook_block_info().
+ */
+function wri_in_the_news_block_info() {
+  $blocks = array();
+
+  $blocks['wri_in_the_news'] = array(
+    'info' => t('From WRI'),
+    'cache' => DRUPAL_NO_CACHE,
+  );
+
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function wri_in_the_news_block_view($delta = '') {
+  if (function_exists($delta . '_view')) {
+    return call_user_func($delta . '_view');
+  }
+}
+
+/**
+ * Implements hook_block_configure().
+ */
+function wri_in_the_news_block_configure($delta = '') {
+  if (function_exists($delta . '_configure')) {
+    return call_user_func($delta . '_configure');
+  }
+}
+
+/**
+ * Implements hook_block_save().
+ */
+function wri_in_the_news_block_save($delta = '', $edit = array()) {
+  if (function_exists($delta . '_save')) {
+    return call_user_func($delta . '_save', $edit);
+  }
+}
+
+/**
+ * Block code to view wri_in_the_news
+ *
+ * This pulls content from the Vocus feed. The data is cached for an hour.
+ * The module will also use watchdog to save messages regarding if it is
+ * using the cache or if there are errors getting the feed.
+ */
+function wri_in_the_news_view() {
+  $block = array('subject' => 'From WRI', 'content' => '');
+
+  $cache_key = 'wri_in_the_news_feed';
+
+  // the list of news items. this is (hopefully) loaded later
+  $news_list = '';
+
+  // check for the data from cache. we cache the entire block content to
+  // avoid parsing XML with every request.
+  $data = cache_get($cache_key, 'cache');
+  if (!$data) {
+    // get the feed from the interwebs
+    $response = drupal_http_request(WRI_IN_THE_NEWS_VOCUS_FEED, array('timeout' => 5));
+    // currently we only will try to parse this data if there is a 200-response
+    if (in_array($response->code, array(200))) {
+      $data = $response->data;
+
+      // parse the feed
+      $xml = @simplexml_load_string($data);
+      if ($xml) {
+        $items = array();
+        $count = 0;
+        foreach ($xml->channel->item as $item) {
+          $item = (array) $item;
+          $description = $item['description'];
+          $src = '';
+          if (preg_match('#Outlet:\s+(.+?)<br#i', $description, $match)) {
+            $src = $match[1];
+          }
+          $items[] = theme(
+            'wri_in_the_news_item',
+            array(
+              'title' => check_plain($item['title']),
+              'link' => check_plain($item['link']),
+              'source' => $src,
+              'date' => strtotime($item['pubDate']),
+              'description' => $description,
+            )
+          );
+
+          // only show a set of the items
+          $count++;
+          if ($count >= WRI_IN_THE_NEWS_NUMBER_OF_ITEMS) {
+            break;
+          }
+        }
+        $news_list = theme('wri_in_the_news_list', array('items' => $items));
+
+        // save it in the cache
+        cache_set($cache_key, $news_list, 'cache', strtotime(WRI_IN_THE_NEWS_CACHE_TIME, time()));
+      }
+      else {
+        if (wri_in_the_news_should_log_error()) {
+          $response_data = var_export($response, TRUE);
+          watchdog('wri_in_the_news', 'Vocus feed error: could not parse XML' . "\n$response_data", array(), WATCHDOG_ERROR);
+        }
+      }
+    }
+    else {
+      // the response code was not in our acceptable codes, so we should
+      // log this for review. but sense this may be happening on every request
+      // to a page on the site, we should only log errors every so often
+      if (wri_in_the_news_should_log_error()) {
+        $response_data = var_export($response, TRUE);
+        watchdog('wri_in_the_news', 'Vocus feed error: response code was not acceptable: ' . $response->code . "\n$response_data", array(), WATCHDOG_ERROR);
+        variable_set('wri_in_the_news_feed_error_timestamp', time());
+      }
+    }
+  }
+  else {
+    // cache_get returns an object with ->data
+    $news_list = $data->data;
+    $last_log = variable_get('wri_in_the_news_feed_log_timestamp', FALSE);
+    if (!$last_log || ($last_log < strtotime('-1 hour'))) {
+      watchdog('wri_in_the_news', 'Using cached block data');
+      variable_set('wri_in_the_news_feed_log_timestamp', time());
+    }
+  }
+  $block['content'] = $news_list;
+  return $block;
+}
+
+/**
+ * Return whether or not a watchdog() should be called for a feed error
+ *
+ * @return bool TRUE if no errors have been logged or it's been an hour
+ */
+function wri_in_the_news_should_log_error() {
+  $last_error = variable_get('wri_in_the_news_feed_error_timestamp', FALSE);
+  return (!$last_error || ($last_error < strtotime('-1 hour')));
+}
+
+/**
+ * Implements hook_theme().
+ */
+function wri_in_the_news_theme($existing, $type, $theme, $path) {
+  return array(
+    'wri_in_the_news_list' => array(
+      'template' => 'wri_in_the_news_list',
+      'variables' => array('items' => NULL),
+    ),
+    'wri_in_the_news_item' => array(
+      'template' => 'wri_in_the_news_item',
+      'variables' => array(
+        'title' => '',
+        'link' => '',
+        'source' => '',
+        'date' => '',
+        'description' => '',
+      ),
+    ),
+  );
+}
